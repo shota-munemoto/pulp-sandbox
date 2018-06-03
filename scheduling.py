@@ -1,4 +1,4 @@
-from pulp import *
+import pulp
 
 # 職員sの集合。
 S = [str(i + 1) for i in range(50)]
@@ -120,11 +120,11 @@ c12 = {}
 
 # 決定変数。
 # 職員sの日dに勤務kが割り当てられているとき1。
-x = LpVariable.dicts('x', (S, D, K), 0, 1, LpBinary)
+x = pulp.LpVariable.dicts('x', (S, D, K), 0, 1, pulp.LpBinary)
 # 職員sに土曜日dから始まる土日休暇が割り当てられているとき1。
-y = LpVariable.dicts('y', (S, H), 0, 1, LpBinary)
+y = pulp.LpVariable.dicts('y', (S, H), 0, 1, pulp.LpBinary)
 
-problem = LpProblem('Scheduling', LpMinimize)
+problem = pulp.LpProblem('Scheduling', pulp.LpMinimize)
 
 # 目的関数。
 problem += sum(c1[d][k][g] - sum(x[s][d][k] for s in SG[g])
@@ -261,8 +261,8 @@ problem.writeLP('scheduling.lp')
 with open('scheduling.txt', 'w') as f:
     while True:
         problem.solve()
-        print("Status:", LpStatus[problem.status])
-        if LpStatus[problem.status] != 'Optimal':
+        print("Status:", pulp.LpStatus[problem.status])
+        if pulp.LpStatus[problem.status] != 'Optimal':
             break
         ls = max(len(s) for s in S)
         f.write(' ' * ls + '|' + ''.join([d[-1:] for d in D]) + '|\n')
