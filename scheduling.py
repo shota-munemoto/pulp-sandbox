@@ -1,19 +1,40 @@
 import pulp
+import pandas as pd
 
 # 職員sの集合。
-S = [str(i + 1) for i in range(50)]
+staffs = pd.read_csv('./data/staffs.csv', dtype={'職員名': str})
+S = [r['職員名'] for _, r in staffs.iterrows()]
 # 日dの集合。
-D = [str(i + 1) for i in range(31)]
+days = pd.read_csv('./data/days.csv', dtype={'日付': str})
+D = [r['日付'] for _, r in days.iterrows()]
 # 土曜日dの集合。
 H = [d for d in D if (int(d) - 5) % 7 == 0]
 # 勤務kの集合。
-K = [' ', 'a', 'b', 'c', 'd', 'e']
+kinmus = pd.read_csv('./data/kinmus.csv', dtype={'勤務名': str})
+K = [r['勤務名'] for _, r in kinmus.iterrows()]
 # グループgの集合。
-G = ['A', 'B', 'C', 'D', 'E']
+groups = pd.read_csv('./data/groups.csv', dtype={'グループ名': str})
+G = [r['グループ名'] for _, r in groups.iterrows()]
 # グループgに所属する職員sの集合。
-SG = {'A': S[0:10], 'B': S[10:20], 'C': S[20:30], 'D': S[30:40], 'E': S[40:50]}
+staff_groups = pd.read_csv(
+    './data/staff_groups.csv', dtype={
+        'グループ名': str,
+        '職員名': str
+    })
+SG = {
+    g: [r['職員名'] for _, r in staffs.iterrows()]
+    for g, staffs in staff_groups.groupby('グループ名')
+}
 # 連続禁止勤務並びの集合。
-P = [['e', 'a']]
+renzoku_kinshi_kinmus = pd.read_csv(
+    './data/renzoku_kinshi_kinmus.csv',
+    dtype={
+        '並びID': int,
+        '勤務名': str,
+        '並び順': int
+    })
+P = [[r['勤務名'] for _, r in kinmus.sort_values(by='並び順').iterrows()]
+     for _, kinmus in renzoku_kinshi_kinmus.groupby('並びID')]
 
 # 日dの勤務kにグループgから割り当てる職員数の下限。
 c1 = {
