@@ -1,5 +1,6 @@
-import scheduling
+import tornado.wsgi
 import flask
+import scheduling
 
 app = flask.Flask(__name__)
 
@@ -19,4 +20,7 @@ def schedule():
 
 
 def run(host, port):
-    app.run(host=host, port=port)
+    container = tornado.wsgi.WSGIContainer(app)
+    http_server = tornado.httpserver.HTTPServer(container)
+    http_server.listen(port, address=host)
+    tornado.ioloop.IOLoop.current().start()
