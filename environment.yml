@@ -1,0 +1,10 @@
+name: pulp
+dependencies:
+  - pip=10.0.1=py36_0
+  - python=3.6.5=h0c2934d_0
+  - pip:
+    - flask==1.0.2
+    - pandas==0.23.0
+    - pulp==1.6.8
+    - pyinstaller==3.3.1
+    - tornado==5.0.2
