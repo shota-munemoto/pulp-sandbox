@@ -1,11 +1,13 @@
-import server
 import multiprocessing
 import webbrowser
 import tkinter
 import tkinter.font
+import server
+import utils
 
-host = '127.0.0.1'
+host = 'localhost'
 port = '5000'
+development_static_port = '3000'
 
 
 def run_server():
@@ -33,6 +35,16 @@ if __name__ == '__main__':
     server_process = multiprocessing.Process(target=run_server)
     server_process.start()
 
+    if utils.frozen():
+        url = f'http://{host}:{port}'
+    else:
+        url = f'http://{host}:{development_static_port}'
+
+    open_browser = browser_opener(url)
+
+    if utils.frozen():
+        open_browser()
+
     root = tkinter.Tk()
     root.title('scheduling')
     terminate_all = terminator(root, server_process)
@@ -40,9 +52,8 @@ if __name__ == '__main__':
     frame = tkinter.Frame(root)
     frame.pack()
     font = tkinter.font.Font(size=12)
-    url = f'http://{host}:{port}'
     open_browser_button = tkinter.Button(
-        frame, command=browser_opener(url), text='新しい画面を開く。', font=font)
+        frame, command=open_browser, text='新しい画面を開く。', font=font)
     open_browser_button.pack(fill='x')
     terminate_button = tkinter.Button(
         frame, command=terminate_all, text='終了する。', font=font)

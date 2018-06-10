@@ -1,22 +1,29 @@
+import os
+import sys
 import tornado.wsgi
 import flask
 import scheduling
+import utils
 
-app = flask.Flask(__name__)
+if utils.frozen():
+    static_folder = os.path.join(sys._MEIPASS, 'static/build')
+else:
+    static_folder = 'static/build'
+app = flask.Flask(__name__, static_folder=static_folder)
 
 
-@app.route('/')
-def index():
-    url = flask.url_for('schedule')
-    return f'<a href="{url}">勤務表を作成する。</a>'
-
-
-@app.route('/schedule')
-def schedule():
-    if scheduling.solve():
-        return '<p>勤務表を作成しscheduling.txtに出力しました。</p>'
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def index(path):
+    if path != '' and os.path.exists(os.path.join('static/build', path)):
+        return flask.send_from_directory('static/build', path)
     else:
-        return '<p>勤務表を作成できませんでした。</p>'
+        return flask.send_from_directory('static/build', 'index.html')
+
+
+@app.route('/api')
+def api():
+    return flask.jsonify({'message': 'hello'})
 
 
 def run(host, port):
