@@ -6,7 +6,6 @@ import webbrowser
 import psutil
 import tkinter
 import tkinter.font
-import server
 import utils
 
 host = 'localhost'
@@ -15,6 +14,7 @@ development_static_port = '3000'
 
 
 def run_server():
+    import server
     server.run(host, port)
 
 

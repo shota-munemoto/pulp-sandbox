@@ -3,6 +3,7 @@ __pycache__
 build
 dist
 node_modules
+data.db
 scheduling.lp
 scheduling.txt
 
