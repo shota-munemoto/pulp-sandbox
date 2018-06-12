@@ -34,7 +34,7 @@ def browser_opener(url):
 # http://psutil.readthedocs.io/en/latest/#kill-process-tree
 def kill_proc_tree(pid,
                    sig=signal.SIGTERM,
-                   include_parent=False,
+                   include_parent=True,
                    timeout=None,
                    on_terminate=None):
     """Kill a process tree (including grandchildren) with signal
@@ -42,6 +42,8 @@ def kill_proc_tree(pid,
     "on_terminate", if specified, is a callabck function which is
     called as soon as a child terminates.
     """
+    if pid == os.getpid():
+        raise RuntimeError("I refuse to kill myself")
     parent = psutil.Process(pid)
     children = parent.children(recursive=True)
     if include_parent:
@@ -57,6 +59,7 @@ if __name__ == '__main__':
     multiprocessing.freeze_support()
     server_process = multiprocessing.Process(target=run_server)
     server_process.start()
+    processes = [server_process]
 
     if utils.frozen():
         url = f'http://{host}:{port}'
@@ -71,12 +74,15 @@ if __name__ == '__main__':
         development_static_process = multiprocessing.Process(
             target=run_development_static)
         development_static_process.start()
+        processes.append(development_static_process)
 
     root = tkinter.Tk()
     root.title('scheduling')
 
     def terminate_all():
-        kill_proc_tree(os.getpid())
+        for process in processes:
+            if process.is_alive():
+                kill_proc_tree(process.pid)
         root.destroy()
 
     root.protocol('WM_DELETE_WINDOW', terminate_all)
