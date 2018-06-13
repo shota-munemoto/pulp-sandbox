@@ -1,166 +1,134 @@
+import operator
 import pulp
-import pandas as pd
+import server
 
 
 def solve():
-    # 職員sの集合。
-    staffs = pd.read_csv('./data/staffs.csv', dtype={'職員名': str})
-    S = [r['職員名'] for _, r in staffs.iterrows()]
-    # 日dの集合。
-    days = pd.read_csv('./data/days.csv', dtype={'日付': str})
-    D = [r['日付'] for _, r in days.iterrows()]
-    # 土曜日dの集合。
-    H = [d for d in D if (int(d) - 5) % 7 == 0]
+    # 職員mの集合。
+    members = server.Member.query.all()
+    M = [member.id for member in members]
+    # 日付dの集合。
+    dates = server.Date.query.order_by(server.Date.name.asc()).all()
+    D = [date.id for date in dates]
     # 勤務kの集合。
-    kinmus = pd.read_csv('./data/kinmus.csv', dtype={'勤務名': str})
-    K = [r['勤務名'] for _, r in kinmus.iterrows()]
+    kinmus = server.Kinmu.query.all()
+    K = [kinmu.id for kinmu in kinmus]
     # グループgの集合。
-    groups = pd.read_csv('./data/groups.csv', dtype={'グループ名': str})
-    G = [r['グループ名'] for _, r in groups.iterrows()]
-    # グループgに所属する職員sの集合。
-    staff_groups = pd.read_csv(
-        './data/staff_groups.csv', dtype={
-            'グループ名': str,
-            '職員名': str
-        })
-    SG = {
-        g: [r['職員名'] for _, r in staffs.iterrows()]
-        for g, staffs in staff_groups.groupby('グループ名')
+    groups = server.Group.query.all()
+    G = [group.id for group in groups]
+    # グループgに所属する職員mの集合。
+    group_members = server.GroupMember.query.all()
+    GM = {
+        group.id: [
+            group_member.member_id for group_member in group_members
+            if group_member.group_id == group.id
+        ]
+        for group in groups
     }
     # 連続禁止勤務並びの集合。
-    renzoku_kinshi_kinmus = pd.read_csv(
-        './data/renzoku_kinshi_kinmus.csv',
-        dtype={
-            '並びID': int,
-            '勤務名': str,
-            '並び順': int
-        })
-    P = [[r['勤務名'] for _, r in kinmus.sort_values(by='並び順').iterrows()]
-         for _, kinmus in renzoku_kinshi_kinmus.groupby('並びID')]
+    renzoku_kinshi_kinmus = server.RenzokuKinshiKinmu.query.all()
+    P = [[
+        renzoku_kinshi_kinmu.kinmu_id for renzoku_kinshi_kinmu in sorted(
+            renzoku_kinshi_kinmus, key=operator.attrgetter('sequence_number'))
+        if renzoku_kinshi_kinmu.sequence_id == sequence_id
+    ] for sequence_id in list(
+        set(renzoku_kinshi_kinmu.sequence_id
+            for renzoku_kinshi_kinmu in renzoku_kinshi_kinmus))]
 
-    # 日dの勤務kにグループgから割り当てる職員数の下限。
-    c1_df = pd.read_csv(
-        './data/c1.csv',
-        dtype={
-            '日付': str,
-            '勤務名': str,
-            'グループ名': str,
-            '割り当て職員数下限': int
-        })
+    # 日付dの勤務kにグループgから割り当てる職員数の下限。
+    c1s = server.C1.query.all()
     c1 = {
-        d: {
-            k: {r['グループ名']: r['割り当て職員数下限']
-                for _, r in groups.iterrows()}
-            for k, groups in kinmus.groupby('勤務名')
+        date_id: {
+            kinmu_id: {
+                r.group_id: r.min_number_of_assignments
+                for r in c1s if r.date_id == date_id and r.kinmu_id == kinmu_id
+            }
+            for kinmu_id in list(
+                set(r.kinmu_id
+                    for r in [r for r in c1s if r.date_id == date_id]))
         }
-        for d, kinmus in c1_df.groupby('日付')
+        for date_id in list(set(r.date_id for r in c1s))
     }
-    # 日dの勤務kにグループgから割り当てる職員数の上限。
-    c2_df = pd.read_csv(
-        './data/c2.csv',
-        dtype={
-            '日付': str,
-            '勤務名': str,
-            'グループ名': str,
-            '割り当て職員数上限': int
-        })
+    # 日付dの勤務kにグループgから割り当てる職員数の上限。
+    c2s = server.C2.query.all()
     c2 = {
-        d: {
-            k: {r['グループ名']: r['割り当て職員数上限']
-                for _, r in groups.iterrows()}
-            for k, groups in kinmus.groupby('勤務名')
+        date_id: {
+            kinmu_id: {
+                r.group_id: r.max_number_of_assignments
+                for r in c2s if r.date_id == date_id and r.kinmu_id == kinmu_id
+            }
+            for kinmu_id in list(
+                set(r.kinmu_id
+                    for r in [r for r in c2s if r.date_id == date_id]))
         }
-        for d, kinmus in c2_df.groupby('日付')
+        for date_id in list(set(r.date_id for r in c2s))
     }
     # 職員sの勤務kの割り当て数の下限。
-    c3_df = pd.read_csv(
-        './data/c3.csv', dtype={
-            '職員名': str,
-            '勤務名': str,
-            '割り当て数下限': int
-        })
+    c3s = server.C3.query.all()
     c3 = {
-        s: {r['勤務名']: r['割り当て数下限']
-            for _, r in kinmus.iterrows()}
-        for s, kinmus in c3_df.groupby('職員名')
+        member_id: {
+            r.kinmu_id: r.min_number_of_assignments
+            for r in c3s if r.member_id == member_id
+        }
+        for member_id in list(set(r.member_id for r in c3s))
     }
     # 職員sの勤務kの割り当て数の上限。
-    c4_df = pd.read_csv(
-        './data/c4.csv', dtype={
-            '職員名': str,
-            '勤務名': str,
-            '割り当て数上限': int
-        })
+    c4s = server.C4.query.all()
     c4 = {
-        s: {r['勤務名']: r['割り当て数上限']
-            for _, r in kinmus.iterrows()}
-        for s, kinmus in c4_df.groupby('職員名')
+        member_id: {
+            r.kinmu_id: r.max_number_of_assignments
+            for r in c4s if r.member_id == member_id
+        }
+        for member_id in list(set(r.member_id for r in c4s))
     }
     # 勤務kの連続日数の下限。
-    c5_df = pd.read_csv('./data/c5.csv', dtype={'勤務名': str, '連続日数下限': int})
-    c5 = {r['勤務名']: r['連続日数下限'] for _, r in c5_df.iterrows()}
+    c5s = server.C5.query.all()
+    c5 = {r.kinmu_id: r.min_number_of_days for r in c5s}
     # 勤務kの連続日数の上限。
-    c6_df = pd.read_csv('./data/c6.csv', dtype={'勤務名': str, '連続日数上限': int})
-    c6 = {r['勤務名']: r['連続日数上限'] for _, r in c6_df.iterrows()}
+    c6s = server.C6.query.all()
+    c6 = {r.kinmu_id: r.max_number_of_days for r in c6s}
     # 勤務kの間隔日数の下限。
-    c7_df = pd.read_csv('./data/c7.csv', dtype={'勤務名': str, '間隔日数下限': int})
-    c7 = {r['勤務名']: r['間隔日数下限'] for _, r in c7_df.iterrows()}
+    c7s = server.C7.query.all()
+    c7 = {r.kinmu_id: r.min_number_of_days for r in c7s}
     # 勤務kの間隔日数の上限。
-    c8_df = pd.read_csv('./data/c8.csv', dtype={'勤務名': str, '間隔日数上限': int})
-    c8 = {r['勤務名']: r['間隔日数上限'] for _, r in c8_df.iterrows()}
-    # 職員sの土日休暇回数の下限。
-    c9_df = pd.read_csv('./data/c9.csv', dtype={'職員名': str, '土日休暇回数下限': int})
-    c9 = {r['職員名']: r['土日休暇回数下限'] for _, r in c9_df.iterrows()}
-    # 職員sの土日休暇回数の上限。
-    c10_df = pd.read_csv('./data/c10.csv', dtype={'職員名': str, '土日休暇回数上限': int})
-    c10 = {r['職員名']: r['土日休暇回数上限'] for _, r in c10_df.iterrows()}
-    # 職員sの日dに割り当てる勤務k。
-    c11_df = pd.read_csv(
-        './data/c11.csv', dtype={
-            '職員名': str,
-            '日付': str,
-            '割り当て勤務名': str
-        })
-    c11 = {
-        s: {r['日付']: r['割り当て勤務名']
-            for _, r in kinmus.iterrows()}
-        for s, kinmus in c11_df.groupby('職員名')
+    c8s = server.C8.query.all()
+    c8 = {r.kinmu_id: r.max_number_of_days for r in c8s}
+    # 職員sの日付dに割り当てる勤務k。
+    c9s = server.C9.query.all()
+    c9 = {
+        member_id:
+        {r.date_id: r.kinmu_id
+         for r in c9s in r.member_id == member_id}
+        for member_id in list(set(r.member_id for r in c9s))
     }
-    # 職員sの日dに割り当てない勤務k。
-    c12_df = pd.read_csv(
-        './data/c12.csv', dtype={
-            '職員名': str,
-            '日付': str,
-            '割り当てない勤務名': str
-        })
-    c12 = {
-        s: {r['日付']: r['割り当てない勤務名']
-            for _, r in kinmus.iterrows()}
-        for s, kinmus in c12_df.groupby('職員名')
+    # 職員sの日付dに割り当てない勤務k。
+    c10s = server.C10.query.all()
+    c10 = {
+        member_id: {r.date_id: r.kinmu_id
+                    for r in c10s in r.member_id}
+        for member_id in list(set(r.member_id for r in c10s))
     }
 
     # 決定変数。
-    # 職員sの日dに勤務kが割り当てられているとき1。
-    x = pulp.LpVariable.dicts('x', (S, D, K), 0, 1, pulp.LpBinary)
-    # 職員sに土曜日dから始まる土日休暇が割り当てられているとき1。
-    y = pulp.LpVariable.dicts('y', (S, H), 0, 1, pulp.LpBinary)
+    # 職員mの日付dに勤務kが割り当てられているとき1。
+    x = pulp.LpVariable.dicts('x', (M, D, K), 0, 1, pulp.LpBinary)
 
     problem = pulp.LpProblem('Scheduling', pulp.LpMinimize)
 
     # 目的関数。
-    problem += sum(c1[d][k][g] - sum(x[s][d][k] for s in SG[g])
+    problem += sum(c1[d][k][g] - sum(x[m][d][k] for m in GM[g])
                    for d in D if d in c1
                    for k in K if k in c1[d]
                    for g in G if g in c1[d][k]) + \
-        sum(sum(x[s][d][k] for s in SG[g]) - c2[d][k][g]
+        sum(sum(x[m][d][k] for m in GM[g]) - c2[d][k][g]
             for d in D if d in c2
             for k in K if k in c2[d]
             for g in G if g in c2[d][k])
 
-    # 各職員sの各日dに割り当てる勤務の数は1。
-    for s in S:
+    # 各職員mの各日dに割り当てる勤務の数は1。
+    for m in M:
         for d in D:
-            problem += sum([x[s][d][k] for k in K]) == 1, ''
+            problem += sum([x[m][d][k] for k in K]) == 1, ''
 
     for d in D:
         if d not in c1:
@@ -171,7 +139,7 @@ def solve():
             for g in G:
                 if g not in c1[d][k]:
                     continue
-                problem += sum(x[s][d][k] for s in SG[g]) >= c1[d][k][g], ''
+                problem += sum(x[m][d][k] for m in GM[g]) >= c1[d][k][g], ''
     for d in D:
         if d not in c2:
             continue
@@ -181,43 +149,43 @@ def solve():
             for g in G:
                 if g not in c2[d][k]:
                     continue
-                problem += sum(x[s][d][k] for s in SG[g]) <= c2[d][k][g], ''
+                problem += sum(x[m][d][k] for m in GM[g]) <= c2[d][k][g], ''
 
-    for s in S:
-        if s not in c3:
+    for m in M:
+        if m not in c3:
             continue
         for k in K:
-            if k not in c3[s]:
+            if k not in c3[m]:
                 continue
-            problem += sum(x[s][d][k] for d in D) >= c3[s][k]
-    for s in S:
-        if s not in c4:
+            problem += sum(x[m][d][k] for d in D) >= c3[m][k]
+    for m in M:
+        if m not in c4:
             continue
         for k in K:
-            if k not in c4[s]:
+            if k not in c4[m]:
                 continue
-            problem += sum(x[s][d][k] for d in D) <= c4[s][k]
+            problem += sum(x[m][d][k] for d in D) <= c4[m][k]
 
-    for s in S:
+    for m in M:
         for k in K:
             if k not in c5:
                 continue
             for d in D:
                 if str(int(d) - c5[k]) not in D:
                     continue
-                problem += sum(x[s][str(int(d) - i)][k]
+                problem += sum(x[m][str(int(d) - i)][k]
                                for i in range(0, c5[k] + 1)) >= c5[k]
-    for s in S:
+    for m in M:
         for k in K:
             if k not in c6:
                 continue
             for d in D:
                 if str(int(d) - c6[k]) not in D:
                     continue
-                problem += sum(x[s][str(int(d) - i)][k]
+                problem += sum(x[m][str(int(d) - i)][k]
                                for i in range(0, c6[k] + 1)) <= c6[k]
 
-    for s in S:
+    for m in M:
         for k in K:
             if k not in c7:
                 continue
@@ -225,57 +193,47 @@ def solve():
                 for i in range(2, c7[k] + 1):
                     if str(int(d) - i) not in D:
                         continue
-                    problem += x[s][str(int(d) - i)][k] - \
-                        sum(x[s][str(int(d) - j)][k] for j in range(1, i)) + \
-                        x[s][d][k] <= 1
-    for s in S:
+                    problem += x[m][str(int(d) - i)][k] - \
+                        sum(x[m][str(int(d) - j)][k] for j in range(1, i)) + \
+                        x[m][d][k] <= 1
+    for m in M:
         for k in K:
             if k not in c8:
                 continue
             for d in D:
                 if str(int(d) - c8[k]) not in D:
                     continue
-                problem += sum(x[s][str(int(d) - i)][k]
+                problem += sum(x[m][str(int(d) - i)][k]
                                for i in range(0, c8[k] + 1)) >= 1
 
-    for s in S:
-        if s in c9:
-            problem += sum(y[s][d] for d in H) >= c9[s]
-        if s in c10:
-            problem += sum(y[s][d] for d in H) <= c10[s]
-        for d in H:
-            problem += 2 * y[s][d] - x[s][d][' '] - x[s][str(int(d) +
-                                                             1)][' '] <= 0
-            problem += y[s][d] - x[s][d][' '] - x[s][str(int(d) + 1)][' '] >= -1
-
-    for s in S:
-        if s not in c11:
+    for m in M:
+        if m not in c9:
             continue
         for d in D:
-            if d not in c11[s]:
+            if d not in c9[m]:
                 continue
             for k in K:
-                if k not in c11[s][d]:
+                if k not in c9[m][d]:
                     continue
-                problem += x[s][d][k] == 1
-    for s in S:
-        if s not in c12:
+                problem += x[m][d][k] == 1
+    for m in M:
+        if m not in c10:
             continue
         for d in D:
-            if d not in c12[s]:
+            if d not in c10[m]:
                 continue
             for k in K:
-                if k not in c12[s][d]:
+                if k not in c10[m][d]:
                     continue
-                problem += x[s][d][k] == 0
+                problem += x[m][d][k] == 0
 
-    for s in S:
+    for m in M:
         for p in P:
             l = len(p) - 1
             for d in D:
                 if str(int(d) - l) not in D:
                     continue
-                problem += sum(x[s][str(int(d) - l + i)][p[i]]
+                problem += sum(x[m][str(int(d) - l + i)][p[i]]
                                for i in range(0, l + 1)) <= l
 
     problem.writeLP('scheduling.lp')
@@ -288,18 +246,19 @@ def solve():
             if pulp.LpStatus[problem.status] != 'Optimal':
                 return solved
             solved = True
-            ls = max(len(s) for s in S)
-            f.write(' ' * ls + '|' + ''.join([d[-1:] for d in D]) + '|\n')
-            f.write('-' * ls + '+' + ('-' * len(D)) + '+\n')
-            for s in S:
-                f.write(s.rjust(ls) + '|')
+            lm = max(len(member.name) for member in members)
+            f.write(' ' * lm + '|' +
+                    ''.join([date.name[-1:] for date in dates]) + '|\n')
+            f.write('-' * lm + '+' + ('-' * len(D)) + '+\n')
+            for member in members:
+                f.write(member.name.rjust(lm) + '|')
                 for d in D:
-                    for k in K:
-                        if x[s][d][k].value() == 1:
-                            f.write(k)
+                    for kinmu in kinmus:
+                        if x[member.id][d][kinmu.id].value() == 1:
+                            f.write(kinmu.name)
                             break
                 f.write('|\n')
-            f.write('-' * ls + '+' + ('-' * len(D)) + '+\n')
-            problem += sum(x[s][d][k] for s in S for d in D for k in K
-                           if x[s][d][k].value() == 1) <= len(S) * len(D) - 1
+            f.write('-' * lm + '+' + ('-' * len(D)) + '+\n')
+            problem += sum(x[m][d][k] for m in M for d in D for k in K
+                           if x[m][d][k].value() == 1) <= len(M) * len(D) - 1
             return solved
