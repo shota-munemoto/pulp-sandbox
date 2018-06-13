@@ -1,23 +1,23 @@
 import operator
 import pulp
-import server
+from server import models
 
 
 def solve():
     # 職員mの集合。
-    members = server.Member.query.all()
+    members = models.Member.query.all()
     M = [member.id for member in members]
     # 日付dの集合。
-    dates = server.Date.query.order_by(server.Date.name.asc()).all()
+    dates = models.Date.query.order_by(models.Date.name.asc()).all()
     D = [date.id for date in dates]
     # 勤務kの集合。
-    kinmus = server.Kinmu.query.all()
+    kinmus = models.Kinmu.query.all()
     K = [kinmu.id for kinmu in kinmus]
     # グループgの集合。
-    groups = server.Group.query.all()
+    groups = models.Group.query.all()
     G = [group.id for group in groups]
     # グループgに所属する職員mの集合。
-    group_members = server.GroupMember.query.all()
+    group_members = models.GroupMember.query.all()
     GM = {
         group.id: [
             group_member.member_id for group_member in group_members
@@ -26,7 +26,7 @@ def solve():
         for group in groups
     }
     # 連続禁止勤務並びの集合。
-    renzoku_kinshi_kinmus = server.RenzokuKinshiKinmu.query.all()
+    renzoku_kinshi_kinmus = models.RenzokuKinshiKinmu.query.all()
     P = [[
         renzoku_kinshi_kinmu.kinmu_id for renzoku_kinshi_kinmu in sorted(
             renzoku_kinshi_kinmus, key=operator.attrgetter('sequence_number'))
@@ -36,7 +36,7 @@ def solve():
             for renzoku_kinshi_kinmu in renzoku_kinshi_kinmus))]
 
     # 日付dの勤務kにグループgから割り当てる職員数の下限。
-    c1s = server.C1.query.all()
+    c1s = models.C1.query.all()
     c1 = {
         date_id: {
             kinmu_id: {
@@ -50,7 +50,7 @@ def solve():
         for date_id in list(set(r.date_id for r in c1s))
     }
     # 日付dの勤務kにグループgから割り当てる職員数の上限。
-    c2s = server.C2.query.all()
+    c2s = models.C2.query.all()
     c2 = {
         date_id: {
             kinmu_id: {
@@ -64,7 +64,7 @@ def solve():
         for date_id in list(set(r.date_id for r in c2s))
     }
     # 職員sの勤務kの割り当て数の下限。
-    c3s = server.C3.query.all()
+    c3s = models.C3.query.all()
     c3 = {
         member_id: {
             r.kinmu_id: r.min_number_of_assignments
@@ -73,7 +73,7 @@ def solve():
         for member_id in list(set(r.member_id for r in c3s))
     }
     # 職員sの勤務kの割り当て数の上限。
-    c4s = server.C4.query.all()
+    c4s = models.C4.query.all()
     c4 = {
         member_id: {
             r.kinmu_id: r.max_number_of_assignments
@@ -82,19 +82,19 @@ def solve():
         for member_id in list(set(r.member_id for r in c4s))
     }
     # 勤務kの連続日数の下限。
-    c5s = server.C5.query.all()
+    c5s = models.C5.query.all()
     c5 = {r.kinmu_id: r.min_number_of_days for r in c5s}
     # 勤務kの連続日数の上限。
-    c6s = server.C6.query.all()
+    c6s = models.C6.query.all()
     c6 = {r.kinmu_id: r.max_number_of_days for r in c6s}
     # 勤務kの間隔日数の下限。
-    c7s = server.C7.query.all()
+    c7s = models.C7.query.all()
     c7 = {r.kinmu_id: r.min_number_of_days for r in c7s}
     # 勤務kの間隔日数の上限。
-    c8s = server.C8.query.all()
+    c8s = models.C8.query.all()
     c8 = {r.kinmu_id: r.max_number_of_days for r in c8s}
     # 職員sの日付dに割り当てる勤務k。
-    c9s = server.C9.query.all()
+    c9s = models.C9.query.all()
     c9 = {
         member_id:
         {r.date_id: r.kinmu_id
@@ -102,7 +102,7 @@ def solve():
         for member_id in list(set(r.member_id for r in c9s))
     }
     # 職員sの日付dに割り当てない勤務k。
-    c10s = server.C10.query.all()
+    c10s = models.C10.query.all()
     c10 = {
         member_id: {r.date_id: r.kinmu_id
                     for r in c10s in r.member_id}
