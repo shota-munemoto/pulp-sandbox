@@ -5,6 +5,7 @@ dependencies:
   - pip:
     - flask==1.0.2
     - flask-sqlalchemy==2.3.2
+    - mypy==0.610
     - psutil==5.4.6
     - pulp==1.6.8
     - pyinstaller==3.3.1
