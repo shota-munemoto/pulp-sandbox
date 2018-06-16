@@ -1,4 +1,4 @@
-# pulp-sandbox
+# pyinstaller-flask-react-pulp
 
 ## install
 
